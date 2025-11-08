@@ -27,6 +27,7 @@
 					flex-grow:1;
 				}	
 		#play_area {
+			height:0; /* why does this work */
 			flex-grow:1;
 			display:flex;
 			flex-flow:column nowrap;
@@ -40,7 +41,7 @@
 		flex-flow:column nowrap;
 		align-items: stretch;
 	}
-		#taglists {
+		#user_taglists {
 			display:flex;
 			flex-flow:column nowrap;
 			align-items: stretch;
@@ -53,15 +54,23 @@
 	.hidden, #main_image_shadow {
 		display:none;
 	}
-	#main_image {
-		height: 100%;
-		background-position: center center;
-		background-size: contain;
-		background-repeat: no-repeat;
-	}
 	#main_image_container {
 		height:100%;
+		display:flex;
+		flex-flow:row nowrap;
+		overflow:auto;
 	}
+		#actual_taglist {
+			display:none;
+			overflow-y:scroll;
+		}
+		#main_image {
+			flex-grow:8;
+			height: 100%;
+			background-position: center center;
+			background-size: contain;
+			background-repeat: no-repeat;
+		}
 	#main_pane.ongoing_hide #main_image_container, #main_pane.unstarted #main_image_container  {
 		display:none;
 	}
@@ -75,6 +84,9 @@
 
 	#main_pane.finished #main_image_container {
 		flex-grow: 7;
+	}
+	#main_pane.finished #actual_taglist {
+		display:block;
 	}
 	#main_pane.finished #main_taglist_container {
 		flex-grow: 3;

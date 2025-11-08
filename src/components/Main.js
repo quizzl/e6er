@@ -25,7 +25,7 @@ export default class Main extends Component {
 			List<TPost>
 			TPost := {
 				url: string,
-				tags: Map<(category: string), List<(tag: string)>>,
+				tags: Map<(category: string), Set<(tag: string)>>,
 				guesses: List<(tag: string, matched: bool)>
 				start_time: ?number
 			}
@@ -33,7 +33,7 @@ export default class Main extends Component {
 		*/
 		blacklist: '', // string
 		whitelist: '', // string
-		guessing_time: 30,
+		guessing_time: 5,
 		timer_interval: null, // TimerInterval
 		image_loaded: false, // bool
 		image_show: false,
@@ -54,14 +54,14 @@ export default class Main extends Component {
 	}
 	
 	pull_next_post = () => {
-		return fetch(`https://e621.net/posts.json?limit=1&tags=id:4426599 ${this.state.whitelist} ${this.state.blacklist.split(' ').map(a => '-' + a).join(' ')} score:>100 order:random`) 
+		return fetch(`https://e621.net/posts.json?limit=1&tags=${this.state.whitelist} ${this.state.blacklist.split(' ').map(a => '-' + a).join(' ')} score:>100 order:random`) 
 			.then(r => r.json())
 			.then(({ posts: ps }) => 
 				this.setState(state => ({
 					cur_post_idx: state.posts.count(), // current post size before append
 					posts: state.posts.push({
-						url: ps[0].file.url, // TODO: error handling on no files
-						tags: (GENERIC_TAG_TYPES.concat(NAMED_TAG_TYPES)).reduce((agg, tag_type) => agg.set(tag_type, new List(ps[0].tags[tag_type])), new Map()),
+						url: [ ps[0].preview.url, ps[0].file.url ], // TODO: error handling on no files
+						tags: (GENERIC_TAG_TYPES.concat(NAMED_TAG_TYPES)).reduce((agg, tag_type) => agg.set(tag_type, new Set(ps[0].tags[tag_type])), new Map()),
 						guesses: new List(),
 						image_loaded: false,
 						start_time: null,
@@ -74,7 +74,7 @@ export default class Main extends Component {
 		<ul {...props}>
 			{guesses.map(([tag, matched]) => {
 				const post_count = this.state.ALL_TAGS.get(tag);
-				return <li><span>{tag}</span><span>{matched ? `+${parseInt(count2score(post_count))} (${si_postfixer(post_count || N_AVG_CENSORED)})` : null}</span></li>;
+				return <li><span className="tag-name">{tag}</span>{matched ? <span><span className="tag-score">+{parseInt(count2score(post_count))}</span><span className="tag-post-count">{si_postfixer(post_count || N_AVG_CENSORED)}</span></span> : null}</li>;
 			}).toArray()}
 		</ul>;
 	
@@ -107,7 +107,7 @@ export default class Main extends Component {
 
 			const guesses = List([guess_raw]).concat(this.state.ALL_ALIASES.get(guess_raw)).filter(a => a !== undefined)
 			const matches_generic = GENERIC_TAG_TYPES.reduce((agg, tag_type) => agg.concat(guesses.filter(guess => cur_post.tags.get(tag_type).includes(guess))), new List());
-			const matches_named = NAMED_TAG_TYPES.reduce((agg, tag_type) => agg.concat(cur_post.tags.get(tag_type).filter(tag => guess_raw.length > MIN_GUESS_LENGTH_NAMED_TAG && tag.indexOf(guess_raw) !== -1)), new List()) // matches_named only uses raw guess, not the aliased tags (to avoid unexpected false positives)
+			const matches_named = NAMED_TAG_TYPES.reduce((agg, tag_type) => agg.concat(cur_post.tags.get(tag_type).filter(tag => guess_raw.length >= MIN_GUESS_LENGTH_NAMED_TAG && tag.indexOf(guess_raw) !== -1)), new List()) // matches_named only uses raw guess, not the aliased tags (to avoid unexpected false positives)
 			const all_matches = matches_generic.concat(matches_named);
 
 			return {
@@ -125,9 +125,8 @@ export default class Main extends Component {
 
 	handleClickNext = e => this.pull_next_post()
 
-	handlePostClick = i => {
-		this.setState({ cur_post_idx: i })
-	}
+	handlePostClick = i => this.setState({ cur_post_idx: i, image_loaded: false })
+
 	handleBlacklistUpdate = e => this.setState({ blacklist: e.target.value })
 	handleWhitelistUpdate = e => this.setState({ whitelist: e.target.value })
 
@@ -136,6 +135,7 @@ export default class Main extends Component {
 		}
 		else {
 			const cur_post = this.state.posts.get(this.state.cur_post_idx);
+			const cur_guesses = cur_post.guesses.map(([tag, _matched]) => tag);
 			const cur_time_expired = Date.now() - cur_post.start_time > this.state.guessing_time * 1000;
 			return <div id="main_root">
 				<section id="main_pane" className={cur_post.start_time === null ? 'unstarted' : (this.state.image_show ? 'ongoing_show' : !cur_time_expired ? 'ongoing_hide' : 'finished')}>
@@ -148,25 +148,28 @@ export default class Main extends Component {
 						</form>
 					</section>
 					<section id="play_area">
-						<p id="main_image_container">
-							<img id="main_image_shadow" src={cur_post.url} onLoad={this.onMainImageLoadHandler} />
-							<div id="main_image" style={{ 'background-image': `url(${cur_post.url})` }} />
-						</p>
 						<p id="main_taglist_container">
 							{ this.render_tag_list(cur_post.guesses, { id: 'main_taglist' }) }
+						</p>
+						<p id="main_image_container">
+							<p id="actual_taglist">
+								{ cur_post.tags.mapKeys((k, tags) => this.render_tag_list(tags.subtract(cur_guesses).toList().sort().map(tag => [tag, true]), { key: k, id: `missing_sidelist_${k}` })).toArray() }
+							</p>
+							<img id="main_image_shadow" src={cur_post.url[0]} onLoad={this.onMainImageLoadHandler} />
+							<div id="main_image" style={{ 'background-image': `url(${cur_time_expired ? cur_post.url[1] : cur_post.url[0]})` }} />
 						</p>
 					</section>
 				</section>
 				<nav id="main_nav">
-					<section id="taglists">
-						<input placeholder="Whitelist" name="whitelist" id="whitelist" onChange={this.handleWhitelacklistUpdate} />
+					<section id="user_taglists">
+						<input placeholder="Whitelist" name="whitelist" id="whitelist" onChange={this.handleWhitelistUpdate} />
 						<input placeholder="Blacklist" name="blacklist" id="blacklist" onChange={this.handleBlacklistUpdate} />
 					</section>
 					<section id="posts">
 						<ul>
 							{ /* console.log(this.get_post_scores().last()[1].toArray()) || */ this.state.posts.map(({ url, guesses, start_time }, post_i) =>
 								<li key={post_i} onClick={() => this.handlePostClick(post_i)}>
-									{ <img src={url} className={start_time === null || Date.now() - start_time < this.state.guessing_time * 1000 ? 'hidden' : ''} width="50" /> }
+									{ <img src={url[0]} className={start_time === null || Date.now() - start_time < this.state.guessing_time * 1000 ? 'hidden' : ''} width="50" /> }
 									{ this.render_tag_list(guesses) }
 								</li>
 							).toArray() }
