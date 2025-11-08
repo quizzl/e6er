@@ -117,6 +117,7 @@ dist
 .yarn/install-state.gz
 .pnp.*
 
-public/tags-202*
+public/tag*csv
+public/tag*json
 public/js
 *.swp

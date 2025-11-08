@@ -11,6 +11,7 @@ const MIN_GUESS_LENGTH_NAMED_TAG = 3;
 export default class Main extends Component {
 	state = {
 		ALL_TAGS: null, // Map<(tag: string), (post_count: int)> 
+		ALL_ALIASES: null, // Map<(tag_ante: string), (tag_cons: string)>
 		posts: new List(), /*
 			List<{
 				url: string, tags: Map<(category: string), List<(tag: string)>>, guesses: List<(tag: string, matched: bool)>
@@ -32,10 +33,13 @@ export default class Main extends Component {
 		fetch('tags-2025-11-03.json').then(r => r.json())
 			.then(tags => this.setState({ ALL_TAGS: new Map(tags) }))
 			.then(this.pull_image);
+		fetch('tag_aliases-2025-11-06.json').then(r => r.json())
+			.then(implications=> this.setState({ ALL_ALIASES: new Map(implications) }))
+			.then(this.pull_image);
 	}
 	
 	pull_image = () => {
-		return fetch(`https://e621.net/posts.json?tags=id:${4426599 || parseInt(Math.random() * 6000000)}`) // TODO: replace with fast query of max ID
+		return fetch(`https://e621.net/posts.json?limit=1&tags=id:4426599 score:>100 order:random`) // TODO: replace with fast query of max ID
 			.then(r => r.json())
 			.then(({ posts: ps }) => 
 				ps.length === 0 || ps[0].score.total < 50 // TODO: implement blacklist
@@ -75,16 +79,19 @@ export default class Main extends Component {
 		e.stopPropagation();
 		e.preventDefault();
 
-		this.setState(({ posts, guess, last_started }) => {
+		this.setState(({ posts, guess:guess_raw, last_started }) => {
+			const guesses = List([guess_raw]).concat(this.state.ALL_ALIASES.get(guess_raw)).filter(a => a !== undefined)
 			const cur_post = posts.get(last_started);
-			const matches_generic_ = GENERIC_TAG_TYPES.reduce((agg, tag_type) => agg || cur_post.tags.get(tag_type).includes(guess), false);
-			const matches_named = NAMED_TAG_TYPES.reduce((agg, tag_type) => agg.concat(cur_post.tags.get(tag_type).filter(tag => guess.length > MIN_GUESS_LENGTH_NAMED_TAG && tag.indexOf(guess) !== -1)), new List())
+			const matches_generic = GENERIC_TAG_TYPES.reduce((agg, tag_type) => agg.concat(guesses.filter(guess => cur_post.tags.get(tag_type).includes(guess))), new List());
+			const matches_named = NAMED_TAG_TYPES.reduce((agg, tag_type) => agg.concat(cur_post.tags.get(tag_type).filter(tag => guess_raw.length > MIN_GUESS_LENGTH_NAMED_TAG && tag.indexOf(guess_raw) !== -1)), new List()) // matches_named only uses raw guess, not the aliased tags (to avoid unexpected false positives)
+			const all_matches = matches_generic.concat(matches_named);
+			console.log(guesses, all_matches)
 
 			return {
 				posts: posts.set(last_started, Object.assign(cur_post, {
-					guesses: !matches_generic_ && matches_named.isEmpty()
-						? cur_post.guesses.push([guess, false])
-						: cur_post.guesses.concat(matches_named.map(tag => [tag, true]), matches_generic_ ? [[guess, true]] : [])
+					guesses: all_matches.isEmpty()
+						? cur_post.guesses.push([guess_raw, false])
+						: cur_post.guesses.concat(all_matches.map(guess => [guess, true]))
 				})),
 				guess: '',
 			};
