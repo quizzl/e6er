@@ -8,6 +8,13 @@ const GENERIC_TAG_TYPES = new List(['general','species', 'invalid']);
 const NAMED_TAG_TYPES = new List(['artist', 'contributor', 'copyright', 'character'])
 const MIN_GUESS_LENGTH_NAMED_TAG = 3;
 
+const N_AVG_CENSORED = 8 // average count for tags with post count between 1 and 100 incl is 8.43
+const count2score = (count) => Math.sqrt(6E6 / (count === undefined ? 1 / N_AVG_CENSORED : count)) // 6M posts is estimate as of ~Nov 2025
+const si_postfixer = (n) => {
+	const [post, divider] = new List([['M', 1E6], ['k', 1E3], ['', 1]]).filter(([_, min]) => n >= min).first()
+	return `${parseInt(n / divider)}${post}`;
+}
+
 export default class Main extends Component {
 	state = {
 		ALL_TAGS: null, // Map<(tag: string), (post_count: int)> 
@@ -30,28 +37,26 @@ export default class Main extends Component {
 	}
 
 	componentDidMount() {
-		fetch('tags-2025-11-03.json').then(r => r.json())
-			.then(tags => this.setState({ ALL_TAGS: new Map(tags) }))
-			.then(this.pull_image);
-		fetch('tag_aliases-2025-11-06.json').then(r => r.json())
-			.then(implications=> this.setState({ ALL_ALIASES: new Map(implications) }))
-			.then(this.pull_image);
+		Promise.all([
+			fetch('tags-2025-11-03.json').then(r => r.json())
+				.then(tags => this.setState({ ALL_TAGS: new Map(tags) })),
+			fetch('tag_aliases-2025-11-06.json').then(r => r.json())
+				.then(implications=> this.setState({ ALL_ALIASES: new Map(implications) })),
+		]).then(this.pull_image);
 	}
 	
 	pull_image = () => {
 		return fetch(`https://e621.net/posts.json?limit=1&tags=id:4426599 score:>100 order:random`) // TODO: replace with fast query of max ID
 			.then(r => r.json())
 			.then(({ posts: ps }) => 
-				ps.length === 0 || ps[0].score.total < 50 // TODO: implement blacklist
-					? this.pull_image()
-					: this.setState(state => ({
-						posts: state.posts.push({
-							url: ps[0].file.url, // TODO: error handling on no files
-							tags: (GENERIC_TAG_TYPES.concat(NAMED_TAG_TYPES)).reduce((agg, tag_type) => agg.set(tag_type, new List(ps[0].tags[tag_type])), new Map()), // TODO: convert to mapMaybe
-							guesses: new List(),
-							image_loaded: false,
-						}),
-					}))
+				this.setState(state => ({
+					posts: state.posts.push({
+						url: ps[0].file.url, // TODO: error handling on no files
+						tags: (GENERIC_TAG_TYPES.concat(NAMED_TAG_TYPES)).reduce((agg, tag_type) => agg.set(tag_type, new List(ps[0].tags[tag_type])), new Map()), // TODO: convert to mapMaybe
+						guesses: new List(),
+						image_loaded: false,
+					}),
+				}))
 			, e => console.error('pull_image', e)) // TODO: make this retry
 	}
 
@@ -68,11 +73,11 @@ export default class Main extends Component {
 
 	onStartClickHandler = () => {
 		const last_started = this.state.posts.count() - 1; 
-		console.log(last_started)
 		this.setState({ image_show: true, last_started });
 	}
 
 	onMainImageLoadHandler = () => this.setState({ image_loaded: true })
+
 
 	handleGuessSubmit = e => {
 
@@ -85,7 +90,6 @@ export default class Main extends Component {
 			const matches_generic = GENERIC_TAG_TYPES.reduce((agg, tag_type) => agg.concat(guesses.filter(guess => cur_post.tags.get(tag_type).includes(guess))), new List());
 			const matches_named = NAMED_TAG_TYPES.reduce((agg, tag_type) => agg.concat(cur_post.tags.get(tag_type).filter(tag => guess_raw.length > MIN_GUESS_LENGTH_NAMED_TAG && tag.indexOf(guess_raw) !== -1)), new List()) // matches_named only uses raw guess, not the aliased tags (to avoid unexpected false positives)
 			const all_matches = matches_generic.concat(matches_named);
-			console.log(guesses, all_matches)
 
 			return {
 				posts: posts.set(last_started, Object.assign(cur_post, {
@@ -118,7 +122,10 @@ export default class Main extends Component {
 						<p index={post_i}>
 							{ post_i >= this.state.last_started ? null : <img src={url} width="50" /> }
 							<ul index={post_i}>
-								{guesses.map(([tag, matched]) => <li><span>{tag}</span><span>{matched ? this.state.ALL_TAGS.get(tag) : null}</span></li>).toArray()}
+								{guesses.map(([tag, matched]) => {
+									const post_count = this.state.ALL_TAGS.get(tag);
+									return <li><span>{tag}</span><span>{matched ? `+${parseInt(count2score(post_count))} (${si_postfixer(post_count || N_AVG_CENSORED)})` : null}</span></li>;
+								}).toArray()}
 							</ul>
 						</p>
 					).toArray() }
