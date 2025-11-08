@@ -15,21 +15,22 @@ const si_postfixer = (n) => {
 	return `${parseInt(n / divider)}${post}`;
 }
 
+
 export default class Main extends Component {
 	state = {
 		ALL_TAGS: null, // Map<(tag: string), (post_count: int)> 
 		ALL_ALIASES: null, // Map<(tag_ante: string), (tag_cons: string)>
-		posts: new List(), /*
-			List<{
-				url: string, tags: Map<(category: string), List<(tag: string)>>, guesses: List<(tag: string, matched: bool)>
-			}>
-			note tags is cached from single lookup on ALL_TAGS per fetch
+		prev_posts: new List(), /*
+			List<TPost>
 		*/
+		cur_post: null, /* ?TPost := {
+				url: string, tags: Map<(category: string), List<(tag: string)>>, guesses: List<(tag: string, matched: bool)>
+			} */
 		blacklist: new List(), /* List<tag: string> */
 		timer_interval: null, // TimerInterval
 		image_loaded: false, // bool
 		image_show: false,
-		last_started: 0,
+		n_showed: 0,
 		guess: '', // string
 	};
 	constructor(props) {
@@ -50,15 +51,24 @@ export default class Main extends Component {
 			.then(r => r.json())
 			.then(({ posts: ps }) => 
 				this.setState(state => ({
-					posts: state.posts.push({
+					cur_post: {
 						url: ps[0].file.url, // TODO: error handling on no files
 						tags: (GENERIC_TAG_TYPES.concat(NAMED_TAG_TYPES)).reduce((agg, tag_type) => agg.set(tag_type, new List(ps[0].tags[tag_type])), new Map()), // TODO: convert to mapMaybe
 						guesses: new List(),
 						image_loaded: false,
-					}),
+					},
 				}))
 			, e => console.error('pull_image', e)) // TODO: make this retry
 	}
+
+	render_tag_list = (guesses, props = {}) => 
+		<ul {...props}>
+			{guesses.map(([tag, matched]) => {
+				const post_count = this.state.ALL_TAGS.get(tag);
+				return <li><span>{tag}</span><span>{matched ? `+${parseInt(count2score(post_count))} (${si_postfixer(post_count || N_AVG_CENSORED)})` : null}</span></li>;
+			}).toArray()}
+		</ul>;
+	
 
 	componentDidUpdate(_prevProps, prevState) {
 		if(this.state.image_show && !prevState.image_show) {
@@ -72,8 +82,7 @@ export default class Main extends Component {
 	}
 
 	onStartClickHandler = () => {
-		const last_started = this.state.posts.count() - 1; 
-		this.setState({ image_show: true, last_started });
+		this.setState(state => ({ image_show: true, n_showed: state.n_showed + 1 }));
 	}
 
 	onMainImageLoadHandler = () => this.setState({ image_loaded: true })
@@ -84,19 +93,18 @@ export default class Main extends Component {
 		e.stopPropagation();
 		e.preventDefault();
 
-		this.setState(({ posts, guess:guess_raw, last_started }) => {
+		this.setState(({ cur_post, guess:guess_raw, last_started }) => {
 			const guesses = List([guess_raw]).concat(this.state.ALL_ALIASES.get(guess_raw)).filter(a => a !== undefined)
-			const cur_post = posts.get(last_started);
 			const matches_generic = GENERIC_TAG_TYPES.reduce((agg, tag_type) => agg.concat(guesses.filter(guess => cur_post.tags.get(tag_type).includes(guess))), new List());
 			const matches_named = NAMED_TAG_TYPES.reduce((agg, tag_type) => agg.concat(cur_post.tags.get(tag_type).filter(tag => guess_raw.length > MIN_GUESS_LENGTH_NAMED_TAG && tag.indexOf(guess_raw) !== -1)), new List()) // matches_named only uses raw guess, not the aliased tags (to avoid unexpected false positives)
 			const all_matches = matches_generic.concat(matches_named);
 
 			return {
-				posts: posts.set(last_started, Object.assign(cur_post, {
+				cur_post: Object.assign(cur_post, {
 					guesses: all_matches.isEmpty()
 						? cur_post.guesses.push([guess_raw, false])
 						: cur_post.guesses.concat(all_matches.map(guess => [guess, true]))
-				})),
+				}),
 				guess: '',
 			};
 		});
@@ -105,28 +113,25 @@ export default class Main extends Component {
 	handleGuessChange = e => this.setState({ guess: e.target.value })
 
 	render = () => {
-		if(this.state.posts.isEmpty()) {
+		if(this.state.cur_post === null) {
 		}
 		else {
-			const cur_post = this.state.posts.last();
 			return <div id="main_root">
 				<section id="main_image_container">
-					<img id="main_image" src={cur_post.url} onLoad={this.onMainImageLoadHandler} className={this.state.image_show ? "" : "hidden" } />
+					<img id="main_image" src={this.state.cur_post.url} onLoad={this.onMainImageLoadHandler} className={this.state.image_show ? "" : "hidden" } />
 				</section>
 				<input type="button" disabled={!this.state.image_loaded} onClick={this.onStartClickHandler} value="Start" />
 				<section id="taglist">
 					<form action="." onSubmit={this.handleGuessSubmit}>
 						<input type="text" onChange={this.handleGuessChange} value={this.state.guess} /><input type="submit" />
 					</form>
-					{ /* console.log(this.get_post_scores().last()[1].toArray()) || */ this.state.posts.map(({ url, guesses }, post_i) =>
-						<p index={post_i}>
-							{ post_i >= this.state.last_started ? null : <img src={url} width="50" /> }
-							<ul index={post_i}>
-								{guesses.map(([tag, matched]) => {
-									const post_count = this.state.ALL_TAGS.get(tag);
-									return <li><span>{tag}</span><span>{matched ? `+${parseInt(count2score(post_count))} (${si_postfixer(post_count || N_AVG_CENSORED)})` : null}</span></li>;
-								}).toArray()}
-							</ul>
+					{ this.render_tag_list(this.state.cur_post.guesses) }
+				</section>
+				<section id="prev_posts">
+					{ /* console.log(this.get_post_scores().last()[1].toArray()) || */ this.state.prev_posts.map(({ url, guesses }, post_i) =>
+						<p key={post_i}>
+							{ <img src={url} width="50" /> }
+							{ this.render_tag_list(guesses) }
 						</p>
 					).toArray() }
 				</section>
