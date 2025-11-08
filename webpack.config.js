@@ -5,7 +5,7 @@ const BundleAnalyzerPlugin = require('webpack-bundle-analyzer').BundleAnalyzerPl
 module.exports = [
   {
     entry: './src/index.js',
-    mode: 'production',
+    mode: 'development',
     output: {
       path: path.resolve(__dirname),
       filename: 'public/js/browse.main.js'

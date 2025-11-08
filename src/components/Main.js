@@ -4,14 +4,16 @@ import { startWith, mergeMap, finalize } from 'rxjs/operators';
 import { EMPTY, from, zip } from 'rxjs'
 import { Map, List, Set } from 'immutable'
 
-const TAG_TYPES = new List(['general', 'artist', 'contributor', 'copyright', 'character', 'species', 'invalid']);
+const GENERIC_TAG_TYPES = new List(['general','species', 'invalid']);
+const NAMED_TAG_TYPES = new List(['artist', 'contributor', 'copyright', 'character'])
+const MIN_GUESS_LENGTH_NAMED_TAG = 3;
 
 export default class Main extends Component {
 	state = {
 		ALL_TAGS: null, // Map<(tag: string), (post_count: int)> 
 		posts: new List(), /*
 			List<{
-				url: string, tags: Map<(tag: string), (post_count: int)>, guesses: List<tag: string>
+				url: string, tags: Map<(category: string), List<(tag: string)>>, guesses: List<(tag: string, matched: bool)>
 			}>
 			note tags is cached from single lookup on ALL_TAGS per fetch
 		*/
@@ -33,7 +35,7 @@ export default class Main extends Component {
 	}
 	
 	pull_image = () => {
-		return fetch(`https://e621.net/posts.json?tags=id:${4426599 && parseInt(Math.random() * 6000000)}`) // TODO: replace with fast query of max ID
+		return fetch(`https://e621.net/posts.json?tags=id:${4426599 || parseInt(Math.random() * 6000000)}`) // TODO: replace with fast query of max ID
 			.then(r => r.json())
 			.then(({ posts: ps }) => 
 				ps.length === 0 || ps[0].score.total < 50 // TODO: implement blacklist
@@ -41,7 +43,7 @@ export default class Main extends Component {
 					: this.setState(state => ({
 						posts: state.posts.push({
 							url: ps[0].file.url, // TODO: error handling on no files
-							tags: TAG_TYPES.reduce((agg, tag_type) => agg.merge(new List(ps[0].tags[tag_type]).reduce((subagg, tag) => subagg.set(tag, this.state.ALL_TAGS.get(tag)), new Map())), new Map()), // TODO: convert to mapMaybe
+							tags: (GENERIC_TAG_TYPES.concat(NAMED_TAG_TYPES)).reduce((agg, tag_type) => agg.set(tag_type, new List(ps[0].tags[tag_type])), new Map()), // TODO: convert to mapMaybe
 							guesses: new List(),
 							image_loaded: false,
 						}),
@@ -68,15 +70,25 @@ export default class Main extends Component {
 
 	onMainImageLoadHandler = () => this.setState({ image_loaded: true })
 
-	get_post_scores = () => this.state.posts.map(post => [post.url, post.guesses.map(tag => [tag, post.tags.get(tag, null)]) ])
-
 	handleGuessSubmit = e => {
-		this.setState(({ posts, guess, last_started }) => ({
-			posts: posts.set(last_started, Object.assign(posts.get(last_started), { guesses: posts.get(last_started).guesses.push(guess) })),
-			guess: '',
-		}));
+
 		e.stopPropagation();
 		e.preventDefault();
+
+		this.setState(({ posts, guess, last_started }) => {
+			const cur_post = posts.get(last_started);
+			const matches_generic_ = GENERIC_TAG_TYPES.reduce((agg, tag_type) => agg || cur_post.tags.get(tag_type).includes(guess), false);
+			const matches_named = NAMED_TAG_TYPES.reduce((agg, tag_type) => agg.concat(cur_post.tags.get(tag_type).filter(tag => guess.length > MIN_GUESS_LENGTH_NAMED_TAG && tag.indexOf(guess) !== -1)), new List())
+
+			return {
+				posts: posts.set(last_started, Object.assign(cur_post, {
+					guesses: !matches_generic_ && matches_named.isEmpty()
+						? cur_post.guesses.push([guess, false])
+						: cur_post.guesses.concat(matches_named.map(tag => [tag, true]), matches_generic_ ? [[guess, true]] : [])
+				})),
+				guess: '',
+			};
+		});
 	}
 
 	handleGuessChange = e => this.setState({ guess: e.target.value })
@@ -95,11 +107,11 @@ export default class Main extends Component {
 					<form action="." onSubmit={this.handleGuessSubmit}>
 						<input type="text" onChange={this.handleGuessChange} value={this.state.guess} /><input type="submit" />
 					</form>
-					{ /* console.log(this.get_post_scores().last()[1].toArray()) || */ this.get_post_scores().map(([post_url, guesses], post_i) =>
+					{ /* console.log(this.get_post_scores().last()[1].toArray()) || */ this.state.posts.map(({ url, guesses }, post_i) =>
 						<p index={post_i}>
-							{ post_i >= this.state.last_started ? null : <img src={post_url} width="50" /> }
+							{ post_i >= this.state.last_started ? null : <img src={url} width="50" /> }
 							<ul index={post_i}>
-								{guesses.map(([tag, score]) => <li><span>{tag}</span><span>{score}</span></li>).toArray()}
+								{guesses.map(([tag, matched]) => <li><span>{tag}</span><span>{matched ? this.state.ALL_TAGS.get(tag) : null}</span></li>).toArray()}
 							</ul>
 						</p>
 					).toArray() }
