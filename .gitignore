@@ -118,6 +118,4 @@ dist
 .pnp.*
 
 public/tag*csv
-public/tag*json
-public/js
 *.swp
