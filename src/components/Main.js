@@ -9,7 +9,7 @@ const NAMED_TAG_TYPES = new List(['artist', 'contributor', 'copyright', 'charact
 const MIN_GUESS_LENGTH_NAMED_TAG = 3;
 
 const N_AVG_CENSORED = 8 // average count for tags with post count between 1 and 100 incl is 8.43
-const count2score = (count) => Math.sqrt(6E6 / (count === undefined ? 1 / N_AVG_CENSORED : count)) // 6M posts is estimate as of ~Nov 2025
+const count2score = (count) => Math.cbrt(6E6 / (count === undefined ? 1 / N_AVG_CENSORED : count)) // 6M posts is estimate as of ~Nov 2025
 const si_postfixer = (n) => {
 	const [post, divider] = new List([['M', 1E6], ['k', 1E3], ['', 1]]).filter(([_, min]) => n >= min).first()
 	return `${parseInt(n / divider)}${post}`;
@@ -17,6 +17,7 @@ const si_postfixer = (n) => {
 
 
 export default class Main extends Component {
+	guess_input = null;
 	state = {
 		ALL_TAGS: null, // Map<(tag: string), (post_count: int)> 
 		ALL_ALIASES: null, // Map<(tag_ante: string), (tag_cons: string)>
@@ -33,7 +34,7 @@ export default class Main extends Component {
 		*/
 		blacklist: '', // string
 		whitelist: '', // string
-		guessing_time: 5,
+		guessing_time: 30,
 		timer_interval: null, // TimerInterval
 		image_loaded: false, // bool
 		image_show: false,
@@ -59,25 +60,28 @@ export default class Main extends Component {
 		return fetch(`https://e621.net/posts.json?limit=1&tags=${this.state.whitelist} ${this.state.blacklist.split(' ').map(a => '-' + a).join(' ')} score:>100 order:random`) 
 			.then(r => r.json())
 			.then(({ posts: ps }) => 
-				this.setState(state => ({
-					cur_post_idx: state.posts.count(), // current post size before append
-					posts: state.posts.push({
-						url: [ ps[0].preview.url, ps[0].file.url ], // TODO: error handling on no files
-						tags: (NAMED_TAG_TYPES.concat(GENERIC_TAG_TYPES)).reduce((agg, tag_type) => agg.set(tag_type, new Set(ps[0].tags[tag_type])), new OrderedMap()),
-						guesses: new List(),
-						image_loaded: false,
-						start_time: null,
-					}),
+				ps[0].preview.url === null || ps[0].file.url === null
+					? this.pull_next_post()
+					: this.setState(state => ({
+						cur_post_idx: state.posts.count(), // current post size before append
+						posts: state.posts.push({
+							id: ps[0].id,
+							url: [ ps[0].preview.url, ps[0].file.url ], // TODO: error handling on no files
+							tags: (NAMED_TAG_TYPES.concat(GENERIC_TAG_TYPES)).reduce((agg, tag_type) => agg.set(tag_type, new Set(ps[0].tags[tag_type])), new OrderedMap()),
+							guesses: new List(),
+							image_loaded: false,
+							start_time: null,
+						}),
 				}))
 			, e => console.error('pull_next_post', e)) // TODO: make this retry
 	}
 
-	agg_guess_scores = (guesses) => guesses.reduce((agg, [guess, matched]) => matched ? agg + parseInt(count2score(this.state.ALL_TAGS.get(guess))) : 0, 0)
-	render_tag_list = (guesses, props = {}) => 
-		<ul {...props}>
+	agg_guess_scores = (guesses) => guesses.reduce((agg, [guess, matched]) => agg + (matched ? parseInt(count2score(this.state.ALL_TAGS.get(guess))) : -1), 0)
+	render_taglist = (guesses, props = {}) => 
+		<ul className="taglist" {...props}>
 			{guesses.map(([tag, matched]) => {
 				const post_count = this.state.ALL_TAGS.get(tag);
-				return <li><span className="tag-name">{matched ? <a href={`https://e621.net/posts?tag=${tag}`} target="_blank">{tag}</a> : tag}</span>{matched ? <span><span className="tag-score">+{parseInt(count2score(post_count))}</span><span className="tag-post-count">{si_postfixer(post_count || N_AVG_CENSORED)}</span></span> : null}</li>;
+				return <li className={matched ? 'correct' : 'incorrect'}><span className="tag-name">{matched ? <a href={`https://e621.net/posts?tag=${tag}`} target="_blank">{tag}</a> : tag}</span>{matched ? <span><span className="tag-score">+{parseInt(count2score(post_count))}</span><span className="tag-post-count">{si_postfixer(post_count || N_AVG_CENSORED)}</span></span> : null}</li>;
 			}).toArray()}
 		</ul>;
 	
@@ -86,6 +90,7 @@ export default class Main extends Component {
 		if(this.state.image_show && !prevState.image_show) {
 			setTimeout(t => {
 				this.setState({ image_show: false })
+				this.guess_input.focus();
 			}, 100); // TODO: understand why requestAnimationFrame doesn't work here. May need to tune to work for most browers, or do a Promise.all between them
 		}
 		/* else if(!this.state.image_show && prevState.image_show) {
@@ -142,34 +147,39 @@ export default class Main extends Component {
 			const cur_time_expired = Date.now() - cur_post.start_time > this.state.guessing_time * 1000;
 			return <div id="main_root">
 				<section id="main_pane" className={cur_post.start_time === null ? 'unstarted' : (this.state.image_show ? 'ongoing_show' : !cur_time_expired ? 'ongoing_hide' : 'finished')}>
-					<section id="controls">
-						<input type="button" disabled={!this.state.image_loaded || cur_post.start_time !== null && cur_time_expired } onClick={this.onStartClickHandler} value="Start" />
-						<input type="button" onClick={this.handleClickNext} value="Next" />
+					<section id="main_controls">
+						<section id="main_buttons">
+							<input type="button" disabled={!this.state.image_loaded || cur_post.start_time !== null } onClick={this.onStartClickHandler} value="Start" />
+							<input type="button" onClick={this.handleClickNext} value="Next" />
+						</section>
 
 						<form action="." onSubmit={this.handleGuessSubmit}>
-							<input type="text" id="guess_input" onInput={this.handleGuessChange} value={this.state.guess} /><input type="submit" disabled={cur_post.start_time === null || cur_time_expired } />
+							<input type="text" id="guess_input" placeholder="Your guess" ref={(input) => this.guess_input = input} onInput={this.handleGuessChange} value={this.state.guess} /><input type="submit" value="+" disabled={cur_post.start_time === null || cur_time_expired } />
 						</form>
 					</section>
 					<section id="play_area">
 						<p id="main_taglist_container">
-							<div id="main_taglist">{ this.render_tag_list(cur_post.guesses, { id: 'main_taglist' }) }</div>
-							<div id="round_score" className={`round-score-parity-${cur_post.guesses.count() % 2}-${cur_post.guesses.isEmpty() ? 'start'  : (cur_post.guesses.last()[1] ? 'correct' : 'incorrect') }`}>{ this.agg_guess_scores(cur_post.guesses)  }</div>
+							<div id="main_taglist">{ this.render_taglist(cur_post.guesses, { id: 'main_taglist' }) }</div>
+							<div id="round_score" className={`round-score-parity-${cur_post.guesses.count() % 2}-${cur_post.guesses.isEmpty() ? 'start'  : (cur_post.guesses.last()[1] ? 'correct' : 'incorrect') }`}><h3>Round score:</h3>{ this.agg_guess_scores(cur_post.guesses)  }</div>
 						</p>
 						<p id="main_image_container">
 							<p id="actual_taglist">
 								{ cur_post.tags.mapKeys((k, tags) =>
 									<p id={`missing_sidelist_${k}`}>
 										{ tags.isEmpty() ? null : <h3>{k.toUpperCase()}</h3> }
-									{ this.render_tag_list(tags.subtract(cur_guesses).toList().sort().map(tag => [tag, true]), { key: k }) }
+									{ this.render_taglist(tags.subtract(cur_guesses).toList().sort().map(tag => [tag, true]), { key: k }) }
 									</p>
 								).toArray() }
 							</p>
 							<img id="main_image_shadow" src={cur_post.url[0]} onLoad={this.onMainImageLoadHandler} />
-							<div id="main_image" style={{ 'background-image': `url(${cur_time_expired ? cur_post.url[1] : cur_post.url[0]})` }}>
+							<a href={cur_post.start_time !== null && cur_time_expired ? `https://e621.net/posts/${cur_post.id}` : null } id="main_image" style={{ 'background-image': `url(${cur_time_expired ? cur_post.url[1] : cur_post.url[0]})` }}>
+								<span id="main_image_placeholder">
+									Press [Start].
+								</span>
 								<span id="main_timer">
 									{ `${(Math.max(this.state.guessing_time - (Date.now() - cur_post.start_time) / 1000, 0)).toFixed(0)}s` /* sorry "incorrect assumptions about time" */ }
 								</span>
-							</div>
+							</a>
 						</p>
 					</section>
 				</section>
@@ -178,15 +188,15 @@ export default class Main extends Component {
 						<input placeholder="Whitelist" name="whitelist" id="whitelist" onInput={this.handleWhitelistUpdate} value={this.state.whitelist} />
 						<input placeholder="Blacklist" name="blacklist" id="blacklist" onInput={this.handleBlacklistUpdate} value={this.state.blacklist} />
 					</section>
+					<section id="total_score_container">
+						<h3 id="total_score">Total score: {this.state.posts.reduce((agg, { guesses }) => agg + this.agg_guess_scores(guesses), 0)}</h3>
+					</section>
 					<section id="posts">
-						<div>
-							<h3>Total: {this.state.posts.reduce((agg, { guesses }) => agg + this.agg_guess_scores(guesses), 0)}</h3>
-						</div>
-						<ul>
+						<ul id="postlist">
 							{ /* console.log(this.get_post_scores().last()[1].toArray()) || */ this.state.posts.map(({ url, guesses, start_time }, post_i) =>
 								<li key={post_i} onClick={() => this.handlePostClick(post_i)}>
 									{ <img src={url[0]} className={start_time === null || Date.now() - start_time < this.state.guessing_time * 1000 ? 'hidden' : ''} width="50" /> }
-									{ this.render_tag_list(guesses) }
+									{ this.render_taglist(guesses) }
 								</li>
 							).toArray() }
 						</ul>
