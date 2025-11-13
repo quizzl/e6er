@@ -9,7 +9,7 @@ const NAMED_TAG_TYPES = new List(['artist', 'contributor', 'copyright', 'charact
 const MIN_GUESS_LENGTH_NAMED_TAG = 3;
 
 const N_AVG_CENSORED = 8 // average count for tags with post count between 1 and 100 incl is 8.43
-const count2score = (count) => Math.cbrt(6E6 / (count === undefined ? 1 / N_AVG_CENSORED : count)) // 6M posts is estimate as of ~Nov 2025
+const count2score = (count) => Math.pow(Math.log(1E7 / (count === undefined ? N_AVG_CENSORED : count)), 1) // 6M posts is estimate as of ~Nov 2025
 const si_postfixer = (n) => {
 	const [post, divider] = new List([['M', 1E6], ['k', 1E3], ['', 1]]).filter(([_, min]) => n >= min).first()
 	return `${parseInt(n / divider)}${post}`;
@@ -34,7 +34,7 @@ export default class Main extends Component {
 		*/
 		blacklist: '', // string
 		whitelist: '', // string
-		guessing_time: 30,
+		guessing_time: 20,
 		timer_interval: null, // TimerInterval
 		image_loaded: false, // bool
 		image_show: false,
@@ -66,7 +66,7 @@ export default class Main extends Component {
 						cur_post_idx: state.posts.count(), // current post size before append
 						posts: state.posts.push({
 							id: ps[0].id,
-							url: [ ps[0].preview.url, ps[0].file.url ], // TODO: error handling on no files
+							url: [ ps[0].preview.url, ps[0].sample.url || ps[0].file.url ], // TODO: error handling on no files
 							tags: (NAMED_TAG_TYPES.concat(GENERIC_TAG_TYPES)).reduce((agg, tag_type) => agg.set(tag_type, new Set(ps[0].tags[tag_type])), new OrderedMap()),
 							guesses: new List(),
 							image_loaded: false,
@@ -110,19 +110,21 @@ export default class Main extends Component {
 		e.stopPropagation();
 		e.preventDefault();
 
-		this.setState(({ guess:guess_raw, last_started }) => {
+		this.setState(({ guess:guess_raw_, last_started }) => {
+			const guess_raw = guess_raw_.toLowerCase();
 			const cur_post = this.state.posts.get(this.state.cur_post_idx);
 
 			const guesses = List([guess_raw]).concat(this.state.ALL_ALIASES.get(guess_raw)).filter(a => a !== undefined)
 			const matches_generic = GENERIC_TAG_TYPES.reduce((agg, tag_type) => agg.concat(guesses.filter(guess => cur_post.tags.get(tag_type).includes(guess))), new List());
 			const matches_named = NAMED_TAG_TYPES.reduce((agg, tag_type) => agg.concat(cur_post.tags.get(tag_type).filter(tag => guess_raw.length >= MIN_GUESS_LENGTH_NAMED_TAG && tag.indexOf(guess_raw) !== -1)), new List()) // matches_named only uses raw guess, not the aliased tags (to avoid unexpected false positives)
-			const all_matches = matches_generic.concat(matches_named);
+			const tag_set = new Set(cur_post.guesses.map(([a, _]) => a));
+			const all_matches = matches_generic.concat(matches_named)
 
 			return {
 				cur_post: Object.assign(cur_post, {
 					guesses: all_matches.isEmpty()
-						? cur_post.guesses.push([guess_raw, false])
-						: cur_post.guesses.concat(all_matches.map(guess => [guess, true]))
+						? ( tag_set.has(guess_raw) ? cur_post.guesses : cur_post.guesses.push([guess_raw, false]))
+						: cur_post.guesses.concat(new Set(all_matches).subtract(tag_set).map(guess => [guess, true]))
 				}),
 				guess: '',
 			};
@@ -172,7 +174,7 @@ export default class Main extends Component {
 								).toArray() }
 							</p>
 							<img id="main_image_shadow" src={cur_post.url[0]} onLoad={this.onMainImageLoadHandler} />
-							<a href={cur_post.start_time !== null && cur_time_expired ? `https://e621.net/posts/${cur_post.id}` : null } id="main_image" style={{ 'background-image': `url(${cur_time_expired ? cur_post.url[1] : cur_post.url[0]})` }}>
+							<a target="_blank" href={cur_post.start_time !== null && cur_time_expired ? `https://e621.net/posts/${cur_post.id}` : null } id="main_image" style={{ 'background-image': `url(${cur_time_expired ? cur_post.url[1] : cur_post.url[0]})` }}>
 								<span id="main_image_placeholder">
 									Press [Start].
 								</span>
