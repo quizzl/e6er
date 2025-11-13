@@ -9,7 +9,7 @@ const NAMED_TAG_TYPES = new List(['artist', 'contributor', 'copyright', 'charact
 const MIN_GUESS_LENGTH_NAMED_TAG = 3;
 
 const N_AVG_CENSORED = 8 // average count for tags with post count between 1 and 100 incl is 8.43
-const count2score = (count) => Math.pow(Math.log(1E7 / (count === undefined ? N_AVG_CENSORED : count)), 1) // 6M posts is estimate as of ~Nov 2025
+const count2score = (count) => Math.pow(Math.log(1E7 / (count === undefined ? N_AVG_CENSORED : count)), 1.4) // 6M posts is estimate as of ~Nov 2025
 const si_postfixer = (n) => {
 	const [post, divider] = new List([['M', 1E6], ['k', 1E3], ['', 1]]).filter(([_, min]) => n >= min).first()
 	return `${parseInt(n / divider)}${post}`;
