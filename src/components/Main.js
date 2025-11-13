@@ -76,7 +76,7 @@ export default class Main extends Component {
 			, e => console.error('pull_next_post', e)) // TODO: make this retry
 	}
 
-	agg_guess_scores = (guesses) => guesses.reduce((agg, [guess, matched]) => agg + (matched ? parseInt(count2score(this.state.ALL_TAGS.get(guess))) : -1), 0)
+	agg_guess_scores = (guesses) => guesses.reduce((agg, [guess, matched]) => agg + (matched ? Math.ceil(count2score(this.state.ALL_TAGS.get(guess))) : -1), 0)
 	render_taglist = (guesses, props = {}) => 
 		<ul className="taglist" {...props}>
 			{guesses.map(([tag, matched]) => {
