@@ -2,6 +2,8 @@ body {
 	background-color:#152f56;
 	color:#DDD;
 	font-family:sans-serif;
+	margin:0;
+	padding:0;
 }
 a {
 	color:#b4c7d9;
@@ -19,16 +21,22 @@ input {
 	background:none;
 	background-color:#020f23;
 	border-radius:0.3em;
-	padding:0.4em;
+	padding:0.6em;
 	border:none;
 	margin:0.1em;
 	font-size:1.4em;
+}
+input[type=range] {
+	accent-color:#09979f;
 }
 input[type=button], input[type=submit] {
 	background-color:#071d3e;
 }
 input:focus {
 	outline:#1871a8 solid 3px;
+}
+input:disabled {
+	opacity:0.6;
 }
 
 #main_root {
@@ -52,14 +60,24 @@ input:focus {
 			display:flex;
 			flex-flow:column nowrap;
 			align-items: stretch;
+			padding:0.6em;
 		}
 			#main_controls #main_buttons {
 				display:flex;
 				flex-flow:row nowrap;
-				align-items:stretch;
+				align-items:center;
 			}
 				#main_buttons > * {
+					flex:5;
+				}
+				#flash_time {
+					min-width:8em;
+					flex:2;
+				}
+				#flash_time_label {
 					flex:1;
+					min-width:8em;
+					padding:0.5em;
 				}
 			#main_controls form {
 				display:flex;
@@ -93,13 +111,26 @@ input:focus {
 	
 	#main_taglist_container {
 		display:flex;
+		margin:0 0.6em;
 	}
 		#main_taglist {
 			flex-grow:1;
 			align-items:stretch;
 		}
+		#postlist {
+			padding:0;
+		}
 			#postlist > li {
-				margin:1em 0;	
+				border-top:rgba(0,0,0,0.2) solid 1px;
+				padding:1em 1em;
+				cursor:pointer;
+			}
+			#postlist > li:hover { 
+				background-color:rgba(0,0,0,0.2);
+			}
+			#postlist > li.selected {
+				background-color:rgba(0,0,0,0.4);
+				cursor:default;
 			}
 			#main_taglist, #posts .taglist {
 				display:flex;
@@ -108,7 +139,7 @@ input:focus {
 
 			#main_taglist li, #posts .taglist li {
 				display:inline;
-				padding:0.4em;
+				padding:0.6em;
 				margin:0.2em;
 			}
 
@@ -176,12 +207,37 @@ input:focus {
 		flex-flow:column nowrap;
 		align-items: stretch;
 		width:30%;
+		border-left:rgba(0,0,0,0.7) solid 3px;
 	}
+		#e6_min_score_holder {
+			display:flex;
+			flex-direction:column;
+			align-items:stretch;
+			padding:1em;
+			margin:0;
+		}
+			#min_score {
+				flex:2;
+				margin:0;
+				padding:0;
+			}
+			#min_score_label {
+				/* margin-left:0.7em; */
+				flex:1;
+			}
 		#user_taglists {
+			padding:0.6em;
 			display:flex;
 			flex-flow:column nowrap;
 			align-items: stretch;
+			border-bottom:rgba(0,0,0,0.7) solid 3px;
 		}
+			#user_taglists h2 {
+				margin:0 0.6em;
+				padding:0;
+				font-size:1.2em;
+				color:#4f688a;
+			}
 		#total_score_container {
 			text-align:center;
 		}
@@ -215,6 +271,8 @@ input:focus {
 		flex-flow:row nowrap;
 		overflow:auto;
 		flex-grow:1;
+		margin:0;
+		margin-top:1em;
 	}
 		#main_image {
 			display:flex;
@@ -249,7 +307,6 @@ input:focus {
 			background-size: contain;
 			background-repeat: no-repeat;
 		}
-
 
 	#main_pane.ongoing_hide #main_timer {
 		display:block;

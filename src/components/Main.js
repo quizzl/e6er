@@ -35,6 +35,8 @@ export default class Main extends Component {
 		blacklist: '', // string
 		whitelist: '', // string
 		guessing_time: 20,
+		flash_time: 0.5,
+		min_score:100,
 		timer_interval: null, // TimerInterval
 		image_loaded: false, // bool
 		image_show: false,
@@ -57,7 +59,7 @@ export default class Main extends Component {
 	}
 	
 	pull_next_post = () => {
-		return fetch(`https://e621.net/posts.json?limit=1&tags=${this.state.whitelist} ${this.state.blacklist.split(' ').map(a => '-' + a).join(' ')} score:>100 order:random`) 
+		return fetch(`https://e621.net/posts.json?limit=1&tags=${this.state.whitelist} ${this.state.blacklist.split(' ').map(a => '-' + a).join(' ')} score:>${parseInt(this.state.min_score)} order:random`) 
 			.then(r => r.json())
 			.then(({ posts: ps }) => 
 				ps[0].preview.url === null || ps[0].file.url === null
@@ -91,7 +93,7 @@ export default class Main extends Component {
 			setTimeout(t => {
 				this.setState({ image_show: false })
 				this.guess_input.focus();
-			}, 100); // TODO: understand why requestAnimationFrame doesn't work here. May need to tune to work for most browers, or do a Promise.all between them
+			}, this.state.flash_time * 1000); // TODO: understand why requestAnimationFrame doesn't work here. May need to tune to work for most browers, or do a Promise.all between them
 		}
 		/* else if(!this.state.image_show && prevState.image_show) {
 			this.pull_next_post();
@@ -140,6 +142,9 @@ export default class Main extends Component {
 	handleBlacklistUpdate = e => this.setState({ blacklist: e.target.value })
 	handleWhitelistUpdate = e => this.setState({ whitelist: e.target.value })
 
+	handleFlashTimeUpdate = e => this.setState({ flash_time: e.target.value })
+	handleMinScoreUpdate = e => this.setState({ min_score: e.target.value })
+
 	render = () => {
 		if(this.state.cur_post_idx === null) {
 		}
@@ -151,6 +156,7 @@ export default class Main extends Component {
 				<section id="main_pane" className={cur_post.start_time === null ? 'unstarted' : (this.state.image_show ? 'ongoing_show' : !cur_time_expired ? 'ongoing_hide' : 'finished')}>
 					<section id="main_controls">
 						<section id="main_buttons">
+							<input type="range" value={this.state.flash_time} min="0.1" max="1.0" step="0.1" id="flash_time" name="flash_time" onInput={this.handleFlashTimeUpdate} /><label id="flash_time_label" for="flash_time"><b>{this.state.flash_time}sec</b> speed</label>
 							<input type="button" disabled={!this.state.image_loaded || cur_post.start_time !== null } onClick={this.onStartClickHandler} value="Start" />
 							<input type="button" onClick={this.handleClickNext} value="Next" />
 						</section>
@@ -187,8 +193,13 @@ export default class Main extends Component {
 				</section>
 				<nav id="main_nav">
 					<section id="user_taglists">
-						<input placeholder="Whitelist" name="whitelist" id="whitelist" onInput={this.handleWhitelistUpdate} value={this.state.whitelist} />
-						<input placeholder="Blacklist" name="blacklist" id="blacklist" onInput={this.handleBlacklistUpdate} value={this.state.blacklist} />
+						<h2>e621 post controls (applied next round)</h2>
+						<p id="e6_min_score_holder">
+							<input type="range" value={this.state.min_score} min="-100" max="100" step="1" id="min_score" name="min_score" onInput={this.handleMinScoreUpdate} />
+							<label id="min_score_label" for="min_score">e621 min score <b>{this.state.min_score}</b>{this.state.min_score < -10 ? " (heh bold today are we...)" : ""}</label>
+						</p>
+						<input placeholder="Whitelist (e.g. penis sex fox)" name="whitelist" id="whitelist" onInput={this.handleWhitelistUpdate} value={this.state.whitelist} />
+						<input placeholder="Blacklist (e.g. penis sex fox)" name="blacklist" id="blacklist" onInput={this.handleBlacklistUpdate} value={this.state.blacklist} />
 					</section>
 					<section id="total_score_container">
 						<h3 id="total_score">Total score: {this.state.posts.reduce((agg, { guesses }) => agg + this.agg_guess_scores(guesses), 0)}</h3>
@@ -196,8 +207,8 @@ export default class Main extends Component {
 					<section id="posts">
 						<ul id="postlist">
 							{ /* console.log(this.get_post_scores().last()[1].toArray()) || */ this.state.posts.map(({ url, guesses, start_time }, post_i) =>
-								<li key={post_i} onClick={() => this.handlePostClick(post_i)}>
-									{ <img src={url[0]} className={start_time === null || Date.now() - start_time < this.state.guessing_time * 1000 ? 'hidden' : ''} width="50" /> }
+								<li key={post_i} className={post_i === this.state.cur_post_idx ? "selected" : ""} onClick={() => this.handlePostClick(post_i)}>
+									{ <img src={start_time === null || Date.now() - start_time < this.state.guessing_time * 1000 ? 'img/mystery.png' : url[0]} width="50" /> }
 									{ this.render_taglist(guesses) }
 								</li>
 							).toArray() }
