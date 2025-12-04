@@ -83,7 +83,7 @@ export default class Main extends Component {
 		<ul className="taglist" {...props}>
 			{guesses.map(([tag, matched]) => {
 				const post_count = this.state.ALL_TAGS.get(tag);
-				return <li className={matched ? 'correct' : 'incorrect'}><span className="tag-name">{matched ? <a href={`https://e621.net/posts?tag=${tag}`} target="_blank">{tag}</a> : tag}</span>{matched ? <span><span className="tag-score">+{parseInt(count2score(post_count))}</span><span className="tag-post-count">{si_postfixer(post_count || N_AVG_CENSORED)}</span></span> : null}</li>;
+				return <li className={matched ? 'correct' : 'incorrect'}><span className="tag-name">{post_count ? <a href={`https://e621.net/posts?tag=${tag}`} target="_blank">{tag}</a> : tag}</span>{<span><span className="tag-score">+{Math.ceil(count2score(post_count))}</span><span className="tag-post-count">{si_postfixer(post_count || N_AVG_CENSORED)}</span></span>}</li>;
 			}).toArray()}
 		</ul>;
 	
@@ -120,13 +120,23 @@ export default class Main extends Component {
 			const matches_generic = GENERIC_TAG_TYPES.reduce((agg, tag_type) => agg.concat(guesses.filter(guess => cur_post.tags.get(tag_type).includes(guess))), new List());
 			const matches_named = NAMED_TAG_TYPES.reduce((agg, tag_type) => agg.concat(cur_post.tags.get(tag_type).filter(tag => guess_raw.length >= MIN_GUESS_LENGTH_NAMED_TAG && tag.indexOf(guess_raw) !== -1)), new List()) // matches_named only uses raw guess, not the aliased tags (to avoid unexpected false positives)
 			const tag_set = new Set(cur_post.guesses.map(([a, _]) => a));
-			const all_matches = matches_generic.concat(matches_named)
+			const all_matches = matches_generic.concat(matches_named);
 
 			return {
 				cur_post: Object.assign(cur_post, {
 					guesses: all_matches.isEmpty()
 						? ( tag_set.has(guess_raw) ? cur_post.guesses : cur_post.guesses.push([guess_raw, false]))
-						: cur_post.guesses.concat(new Set(all_matches).subtract(tag_set).map(guess => [guess, true]))
+						: cur_post.guesses.push([
+							new Set(all_matches)
+								.subtract(tag_set)
+								.reduce((a, x) => {
+									console.log(a,x);
+									const [an, _] = a;
+									const n = this.state.ALL_TAGS.get(x) || 0;
+									return n > an ? [n, x] : a; // pick only least populated tag
+								}, [-Infinity, null])[1],
+							true
+						])
 				}),
 				guess: '',
 			};
@@ -175,7 +185,7 @@ export default class Main extends Component {
 								{ cur_post.tags.mapKeys((k, tags) =>
 									<p id={`missing_sidelist_${k}`}>
 										{ tags.isEmpty() ? null : <h3>{k.toUpperCase()}</h3> }
-									{ this.render_taglist(tags.subtract(cur_guesses).toList().sort().map(tag => [tag, true]), { key: k }) }
+									{ this.render_taglist(tags.toList().sort().map(tag => [tag, cur_guesses.contains(tag)]).sort(), true, { key: k }) }
 									</p>
 								).toArray() }
 							</p>

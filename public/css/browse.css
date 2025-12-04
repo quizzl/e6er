@@ -107,6 +107,9 @@ input:disabled {
 			margin:0 0.7em;
 			background-color:rgba(0,0,0,0.2)
 		}
+		.taglist .incorrect .tag-score, .taglist .incorrect .tag-post-count {
+			display:none;
+		}
 
 	
 	#main_taglist_container {
@@ -300,6 +303,14 @@ input:disabled {
 			#actual_taglist ul {
 				padding:0 1em;
 			}
+				#actual_taglist .correct {
+					background-color:#3c7b38;
+					color:#164213;
+					padding:0.1em 0;
+				}
+				#actual_taglist .incorrect .tag-score, #actual_taglist .incorrect .tag-post-count {
+					display:inline;
+				}
 		#main_image {
 			flex-grow:8;
 			height: 100%;
