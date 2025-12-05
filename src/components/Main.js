@@ -35,7 +35,7 @@ export default class Main extends Component {
 		blacklist: '', // string
 		whitelist: '', // string
 		guessing_time: 20,
-		flash_time: 0.5,
+		flash_time: 0.3,
 		min_score:100,
 		timer_interval: null, // TimerInterval
 		image_loaded: false, // bool
@@ -195,7 +195,8 @@ export default class Main extends Component {
 									Press [Start].
 								</span>
 								<span id="main_timer">
-									{ `${(Math.max(this.state.guessing_time - (Date.now() - cur_post.start_time) / 1000, 0)).toFixed(0)}s` /* sorry "incorrect assumptions about time" */ }
+									<h4>Guess tags.</h4>
+									<div>{ `${(Math.max(this.state.guessing_time - (Date.now() - cur_post.start_time) / 1000, 0)).toFixed(0)}s` /* sorry "incorrect assumptions about time" */ }</div>
 								</span>
 							</a>
 						</p>
@@ -208,8 +209,8 @@ export default class Main extends Component {
 							<input type="range" value={this.state.min_score} min="-100" max="100" step="1" id="min_score" name="min_score" onInput={this.handleMinScoreUpdate} />
 							<label id="min_score_label" for="min_score">e621 min score <b>{this.state.min_score}</b>{this.state.min_score < -10 ? " (heh bold today are we...)" : ""}</label>
 						</p>
-						<input placeholder="Whitelist (e.g. penis sex fox)" name="whitelist" id="whitelist" onInput={this.handleWhitelistUpdate} value={this.state.whitelist} />
-						<input placeholder="Blacklist (e.g. penis sex fox)" name="blacklist" id="blacklist" onInput={this.handleBlacklistUpdate} value={this.state.blacklist} />
+						<input placeholder="Whitelist (e.g. penis fox what_has_science_done)" name="whitelist" id="whitelist" onInput={this.handleWhitelistUpdate} value={this.state.whitelist} />
+						<input placeholder="Blacklist (e.g. penis fox what_has_science_done)" name="blacklist" id="blacklist" onInput={this.handleBlacklistUpdate} value={this.state.blacklist} />
 					</section>
 					<section id="total_score_container">
 						<h3 id="total_score">Total score: {this.state.posts.reduce((agg, { guesses }) => agg + this.agg_guess_scores(guesses), 0)}</h3>
@@ -223,6 +224,9 @@ export default class Main extends Component {
 								</li>
 							).toArray() }
 						</ul>
+					</section>
+					<section id="logo_container">
+						<a href="https://github.com/quizzl/e6er.git"><img src="img/logo.png" id="logo" /></a>
 					</section>
 				</nav>
 			</div>

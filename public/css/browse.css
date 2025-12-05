@@ -124,7 +124,7 @@ input:disabled {
 			padding:0;
 		}
 			#postlist > li {
-				border-top:rgba(0,0,0,0.2) solid 1px;
+				border-top:rgba(0,0,0,0.5) solid 1px;
 				padding:1em 1em;
 				cursor:pointer;
 			}
@@ -212,6 +212,17 @@ input:disabled {
 		width:30%;
 		border-left:rgba(0,0,0,0.7) solid 3px;
 	}
+		#main_nav > * {
+			flex:1;
+		}
+		#logo_container {
+			text-align:center;
+			border-top:rgba(0,0,0,0.7) solid 3px;
+			padding:1em 0;
+		}
+			#logo {
+				max-height:4em;
+			}
 		#e6_min_score_holder {
 			display:flex;
 			flex-direction:column;
@@ -253,6 +264,7 @@ input:disabled {
 
 		#posts {
 			overflow-y:scroll;
+			flex:100000;
 		}
 			#posts > ul {
 			}
@@ -288,7 +300,13 @@ input:disabled {
 				font-size:3em;
 				font-weight:bold;
 				display:none;
+				text-align:center;
 			}
+				#main_timer h4 {
+					font-size:0.5em;
+					font-weight:bold;
+					margin:0.3em 0;
+				}
 			#main_image_placeholder {
 				color:#AAA;
 				opacity:0.4;
