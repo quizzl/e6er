@@ -166,6 +166,7 @@ input:disabled {
 			font-weight:bold;
 			background-color:rgba(0,0,0,0.2);
 			text-align:center;
+			vertical-align:middle;
 
 			animation-duration:2500ms;
 			animation-iteration-count:1;

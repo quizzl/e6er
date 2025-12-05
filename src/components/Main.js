@@ -49,9 +49,9 @@ export default class Main extends Component {
 
 	componentDidMount() {
 		Promise.all([
-			fetch('tags-2025-11-03.json').then(r => r.json())
+			fetch('public/tags-2025-11-03.json').then(r => r.json())
 				.then(tags => this.setState({ ALL_TAGS: new Map(tags) })),
-			fetch('tag_aliases-2025-11-06.json').then(r => r.json())
+			fetch('public/tag_aliases-2025-11-06.json').then(r => r.json())
 				.then(implications=> this.setState({ ALL_ALIASES: new Map(implications) })),
 		]).then(this.pull_next_post);
 
@@ -219,14 +219,14 @@ export default class Main extends Component {
 						<ul id="postlist">
 							{ /* console.log(this.get_post_scores().last()[1].toArray()) || */ this.state.posts.map(({ url, guesses, start_time }, post_i) =>
 								<li key={post_i} className={post_i === this.state.cur_post_idx ? "selected" : ""} onClick={() => this.handlePostClick(post_i)}>
-									{ <img src={start_time === null || Date.now() - start_time < this.state.guessing_time * 1000 ? 'img/mystery.png' : url[0]} width="50" /> }
+									{ <img src={start_time === null || Date.now() - start_time < this.state.guessing_time * 1000 ? 'public/img/mystery.png' : url[0]} width="50" /> }
 									{ this.render_taglist(guesses) }
 								</li>
 							).toArray() }
 						</ul>
 					</section>
 					<section id="logo_container">
-						<a href="https://github.com/quizzl/e6er.git"><img src="img/logo.png" id="logo" /></a>
+						<a href="https://github.com/quizzl/e6er.git" target="_blank"><img src="public/img/logo.png" id="logo" /></a>
 					</section>
 				</nav>
 			</div>
