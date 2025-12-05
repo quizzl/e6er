@@ -115,6 +115,7 @@ input:disabled {
 	#main_taglist_container {
 		display:flex;
 		margin:0 0.6em;
+		align-items:flex-start;
 	}
 		#main_taglist {
 			flex-grow:1;
@@ -365,5 +366,45 @@ input:disabled {
 	}
 	#main_pane.finished #main_taglist_container {
 		flex-grow: 3;
+	}
+
+#error_reporter_container {
+	position:absolute;
+	left:0;
+	right:0;
+	top:3em;
+	text-align:center;
+	pointer-events:none;
+}
+	#error_reporter {
+		display:inline-block;
+		padding:1em;
+		opacity:0;
+
+		animation-duration:3000ms;
+		animation-iteration-count:1;
+		animation-timing-function:ease-out;
+
+		background-color:#c37777;
+		color:#401a1a;
+		border:#8d3a3a solid 1px;
+	}
+	.error_parity_0 {
+		animation-name:error_report_parity_0;
+	}
+	.error_parity_1 {
+		animation-name:error_report_parity_1;
+	}
+
+	@keyframes error_report_parity_0 {
+		0% { opacity:1; }
+		50% { opacity: 1; }
+		100% { opacity: 0; }
+	}
+
+	@keyframes error_report_parity_1 {
+		0% { opacity:1; }
+		50% { opacity: 1; }
+		100% { opacity: 0; }
 	}
 

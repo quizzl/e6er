@@ -42,6 +42,9 @@ export default class Main extends Component {
 		image_show: false,
 		tick: 0, // int // for triggering re-renders for timer
 		guess: '', // string
+
+		error_idx: 0,
+		error: '',
 	};
 	constructor(props) {
 		super(props);
@@ -62,20 +65,22 @@ export default class Main extends Component {
 		return fetch(`https://e621.net/posts.json?limit=1&tags=${this.state.whitelist} ${this.state.blacklist.split(' ').map(a => '-' + a).join(' ')} score:>${parseInt(this.state.min_score)} order:random`) 
 			.then(r => r.json())
 			.then(({ posts: ps }) => 
-				ps[0].preview.url === null || ps[0].file.url === null
-					? this.pull_next_post()
-					: this.setState(state => ({
-						cur_post_idx: state.posts.count(), // current post size before append
-						posts: state.posts.push({
-							id: ps[0].id,
-							url: [ ps[0].preview.url, ps[0].sample.url || ps[0].file.url ], // TODO: error handling on no files
-							tags: (NAMED_TAG_TYPES.concat(GENERIC_TAG_TYPES)).reduce((agg, tag_type) => agg.set(tag_type, new Set(ps[0].tags[tag_type])), new OrderedMap()),
-							guesses: new List(),
-							image_loaded: false,
-							start_time: null,
-						}),
+				ps.length === 0 ? this.setState(state => ({ error_idx: state.error_idx + 1, error: 'No posts were found.' }))
+					: ps[0].preview.url === null || ps[0].file.url === null
+						? this.pull_next_post()
+						: this.setState(state => ({
+							cur_post_idx: state.posts.count(), // current post size before append
+							posts: state.posts.push({
+								id: ps[0].id,
+								url: [ ps[0].preview.url, ps[0].sample.url || ps[0].file.url ], // TODO: error handling on no files
+								tags: (NAMED_TAG_TYPES.concat(GENERIC_TAG_TYPES)).reduce((agg, tag_type) => agg.set(tag_type, new Set(ps[0].tags[tag_type])), new OrderedMap()),
+								guesses: new List(),
+								image_loaded: false,
+								start_time: null,
+							}),
 				}))
-			, e => console.error('pull_next_post', e)) // TODO: make this retry
+			) //  console.error('pull_next_post', e))
+			.catch(e => console.error('pull_next_post', e) || this.setState(state => ({ error_idx: state.error_idx + 1, error: `Oh no big error! Let quizz know @quizzlicks on Telegram with this info: ${e.toString()}` })))
 	}
 
 	agg_guess_scores = (guesses) => guesses.reduce((agg, [guess, matched]) => agg + (matched ? Math.ceil(count2score(this.state.ALL_TAGS.get(guess))) : -1), 0)
@@ -229,6 +234,9 @@ export default class Main extends Component {
 						<a href="https://github.com/quizzl/e6er.git" target="_blank"><img src="public/img/logo.png" id="logo" /></a>
 					</section>
 				</nav>
+				<section id="error_reporter_container">
+					<div id="error_reporter" className={this.state.error_idx > 0 ? `error_parity_${this.state.error_idx % 2}` : ''}>{this.state.error}</div>
+				</section>
 			</div>
 		}
 	}
